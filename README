@@ -1,0 +1,142 @@
+======
+README
+======
+
+$Release: $
+
+
+About
+-----
+
+merb_piece_cache is a Merb plug-in to cache html fragments.
+You can eliminate database access with this plugin.
+
+Currently only file-base cache store is provided.
+(Memory-base cache store may be provided in future.)
+
+
+Install
+-------
+
+    ### install gem
+    $ sudo gem install merb_helpers_monkey
+    ## add 'dependency "merb_piece_cache"'
+    $ vi config/dependencies.rb
+
+This plugin requires 'called_from' library.
+If you install this plugin manually, don't forget to install 'called_from'.
+
+
+Example
+-------
+
+* [controller] delay database access by if_not_cached() helper.
+* [template] specify cache area by cache_with() helper.
+
+
+controller:
+
+    def index
+      ## @user is necessary every time
+      @user = User.current()
+      ## @members is necessary only when cache is refreshed
+      ## (block parameter is called only when cache is expired or not found)
+      if_not_cached {|cache_key|
+        @members = Members.all(:order=>[:created_at])
+      }
+      render
+    end
+
+
+template:
+
+    <!-- rendered every time (because never cached) -->
+    <% if @user %>
+      Hello <%=h @user %>!
+    <% else %>
+      <a href="/login">Login</a>
+    <% end %>
+
+    <!-- rendered only when cache is expired or not found -->
+    <% lifetime = 5*60  # sec, default is nil(=infinity) %>
+    <% cache_with("members/index", lifetime) do %>
+      <ul>
+      <% for member in @members %>
+        <li><%=h @member.name %></li>
+      <% end %>
+      <ul>
+    <% end %>
+
+
+Reference
+---------
+
+Merb_piece_cache plugin provides the following helpers.
+
+* if_not_cached() {|cache_key| ... }
+     Register block as callback object which is called when fragment
+     cache is re-generated (In other words, block parameter is called
+     only when cache is re-generated).
+     Block paramter can receive cache_key as 1st argument so that
+     you can switch data processing according to cache_key.
+     
+* piece_cache(cache_key, lifetime=nil) { ... }
+     When cache is found and not expired, then add cache data into view.
+     Otherwise, call block to re-generate cache data and cache it.
+     (Notice that block parameter is called only when cache is re-generated.)
+     It is able to specify cache lifetime. For example, if you specify
+     lifetime=5*60, cache data will be expired after 5 minutes.
+
+* cache_with(cache_key, lifetime=nil) { ... }
+     Alias of piece_cache().
+     You can re-define this helper to extend cache behaviour.
+
+
+Configuration
+-------------
+
+You can configure merb_piece_cache plugin in your environment file.
+(config/environments/{production,development,test}.rb).
+For example, add the followings into your 'development.rb':
+
+    Merb::Plugins.config[:merb_piece_cache] = {
+      ## show cached area in template (convenient for debug!)
+      :show_area => true,
+      ## directory to place cache files (default: "MERB_ROOT/tmp/cache")
+      :root_dir  => "/var/tmp",
+    }
+
+
+Tips
+----
+
+* You can prepare different data in if_not_exist() according to cache_key.
+
+      def index
+        if_not_cached {|cache_key|
+	  case cache_key
+	  when /^post\/(\d+)$/
+	    @post = BlogPost.get($1)
+          when /^post\/(\d+)/comments$/
+	    @comments = BlogComment.all(:post_id=>$1)
+	  end
+	}
+	render
+      end
+
+* piece_cache() (and also cache_with()) checks template timestamp.
+  If cache data is older than template timestamp, then cache data will be
+  re-generated.
+
+
+Author
+------
+
+makoto kuwata <kwa(at)kuwata-lab.com>
+copyright(c) 2009 kuwata-lab.com all rights reserved.
+
+
+License
+-------
+
+MIT License
